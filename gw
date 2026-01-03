@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# gw - Git Worktree 생성 스크립트
+# 사용법: gw <branch-name>
+# 현재 git 프로젝트의 상위 디렉토리에 worktree를 생성하고 VSCode로 엽니다.
+
+set -e
+
+# 색상 정의
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# 에러 출력 함수
+error() {
+    echo -e "${RED}오류: $1${NC}" >&2
+    exit 1
+}
+
+# 정보 출력 함수
+info() {
+    echo -e "${GREEN}$1${NC}"
+}
+
+# 경고 출력 함수
+warn() {
+    echo -e "${YELLOW}$1${NC}"
+}
+
+# 인자 확인
+if [ -z "$1" ]; then
+    error "브랜치명을 입력해주세요.\n사용법: gw <branch-name>"
+fi
+
+BRANCH_NAME="$1"
+
+# git 디렉토리 확인
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    error "현재 디렉토리는 git 저장소가 아닙니다."
+fi
+
+# git root 디렉토리 찾기
+GIT_ROOT=$(git rev-parse --show-toplevel)
+PROJECT_NAME=$(basename "$GIT_ROOT")
+PARENT_DIR=$(dirname "$GIT_ROOT")
+
+# worktree 디렉토리 경로
+WORKTREE_DIR="${PARENT_DIR}/${PROJECT_NAME}_${BRANCH_NAME}"
+
+# 이미 존재하는지 확인
+if [ -d "$WORKTREE_DIR" ]; then
+    warn "디렉토리가 이미 존재합니다: $WORKTREE_DIR"
+    read -p "VSCode로 열까요? (y/n): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        code "$WORKTREE_DIR"
+        info "VSCode로 열었습니다: $WORKTREE_DIR"
+    fi
+    exit 0
+fi
+
+# 브랜치 존재 여부 확인 (로컬 또는 원격)
+BRANCH_EXISTS=false
+if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
+    BRANCH_EXISTS=true
+    info "로컬 브랜치 '$BRANCH_NAME'을(를) 사용합니다."
+elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME" 2>/dev/null; then
+    BRANCH_EXISTS=true
+    info "원격 브랜치 'origin/$BRANCH_NAME'을(를) 사용합니다."
+fi
+
+# worktree 생성
+info "Worktree 생성 중..."
+info "  경로: $WORKTREE_DIR"
+info "  브랜치: $BRANCH_NAME"
+
+if [ "$BRANCH_EXISTS" = true ]; then
+    # 기존 브랜치로 worktree 생성
+    git worktree add "$WORKTREE_DIR" "$BRANCH_NAME"
+else
+    # 새 브랜치 생성과 함께 worktree 생성
+    warn "브랜치 '$BRANCH_NAME'이(가) 존재하지 않습니다. 새로 생성합니다."
+    git worktree add -b "$BRANCH_NAME" "$WORKTREE_DIR"
+fi
+
+info "Worktree 생성 완료!"
+
+# VSCode로 열기
+info "VSCode로 여는 중..."
+code "$WORKTREE_DIR"
+
+info "완료! 새 worktree에서 작업을 시작하세요."
+echo ""
+echo "  위치: $WORKTREE_DIR"
+echo "  브랜치: $BRANCH_NAME"
+echo ""
+echo "worktree 삭제 시: git worktree remove $WORKTREE_DIR"
