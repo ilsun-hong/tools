@@ -167,10 +167,8 @@ delete_single_worktree() {
     else
         if git branch -d "$branch" 2>/dev/null; then
             info "  브랜치 '$branch' 삭제 완료"
-        elif git branch -D "$branch" 2>/dev/null; then
-            warn "  브랜치 '$branch' 강제 삭제 (머지되지 않은 변경사항 있음)"
         else
-            warn "  브랜치 '$branch' 삭제 실패"
+            warn "  브랜치 '$branch' 삭제 실패 (머지되지 않은 변경사항 있음, -f 옵션으로 강제 삭제 가능)"
         fi
     fi
 
