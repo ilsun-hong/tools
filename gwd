@@ -124,6 +124,19 @@ is_branch_merged() {
     return 1
 }
 
+# 현재 디렉토리가 해당 worktree 내에 있는지 확인
+is_current_directory() {
+    local wt_path="$1"
+    [[ "$PWD" == "$wt_path"* ]]
+}
+
+# worktree에 uncommitted 변경사항 또는 untracked 파일이 있는지 확인
+has_dirty_files() {
+    local wt_path="$1"
+    # git status --porcelain은 staged, unstaged, untracked 파일 모두 표시
+    [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]
+}
+
 # 단일 worktree 삭제 함수
 delete_single_worktree() {
     local branch="$1"
@@ -138,7 +151,11 @@ delete_single_worktree() {
 
     # worktree 삭제
     info "  Worktree 삭제 중: $worktree_dir"
-    git worktree remove "$worktree_dir" --force
+    if [ "$force" = true ]; then
+        git worktree remove "$worktree_dir" --force
+    else
+        git worktree remove "$worktree_dir"
+    fi
 
     # 브랜치 삭제
     if [ "$force" = true ]; then
@@ -197,8 +214,21 @@ if [ "$ALL_MODE" = true ]; then
             continue
         fi
 
-        # force 모드가 아니면 merge 여부 확인
+        # 현재 작업 디렉토리인 경우 스킵 (--force여도 스킵)
+        if is_current_directory "$wt_path"; then
+            warn "스킵: '$wt_branch' (현재 작업 중인 디렉토리)"
+            continue
+        fi
+
+        # force 모드가 아니면 추가 체크
         if [ "$FORCE_MODE" = false ]; then
+            # dirty 파일 체크 (uncommitted 또는 untracked)
+            if has_dirty_files "$wt_path"; then
+                warn "스킵: '$wt_branch' (uncommitted 또는 untracked 파일 있음)"
+                continue
+            fi
+
+            # merge 여부 확인
             if ! is_branch_merged "$wt_branch"; then
                 warn "스킵: '$wt_branch' (merge되지 않음)"
                 continue
