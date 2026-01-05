@@ -133,8 +133,12 @@ is_current_directory() {
 # worktree에 uncommitted 변경사항 또는 untracked 파일이 있는지 확인
 has_dirty_files() {
     local wt_path="$1"
+    local status_output
+
     # git status --porcelain은 staged, unstaged, untracked 파일 모두 표시
-    [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]
+    # 에러 발생 시 안전하게 dirty로 간주
+    status_output=$(git -C "$wt_path" status --porcelain 2>&1) || return 0
+    [ -n "$status_output" ]
 }
 
 # 단일 worktree 삭제 함수
